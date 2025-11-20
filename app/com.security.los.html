@@ -1,0 +1,600 @@
+<!-- app/com.security.los.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Безопасность</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #004f4f;
+            color: white;
+            font-family: sans-serif;
+            height: 100vh;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        
+        .security-container {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        
+        .security-title {
+            text-align: center;
+            font-size: 1.5rem;
+            margin-bottom: 30px;
+            color: white;
+        }
+        
+        .password-type-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .type-btn {
+            flex: 1;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        
+        .type-btn.active {
+            background: #008080;
+            border-color: #00cccc;
+        }
+        
+        .password-section {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .password-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 16px;
+            box-sizing: border-box;
+            margin-bottom: 15px;
+        }
+        
+        .password-input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+        
+        .password-btn {
+            width: 100%;
+            padding: 12px;
+            background: #008080;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        
+        .password-btn:hover {
+            background: #00cccc;
+        }
+        
+        .password-btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        
+        .status-message {
+            text-align: center;
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .status-success {
+            background: rgba(0, 255, 0, 0.2);
+            color: #90ee90;
+        }
+        
+        .status-error {
+            background: rgba(255, 0, 0, 0.2);
+            color: #ff6b6b;
+        }
+        
+        .password-info {
+            text-align: center;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 20px;
+        }
+
+        .pattern-setup-container {
+            text-align: center;
+        }
+
+        .pattern-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin: 20px auto;
+            width: 240px;
+            height: 240px;
+        }
+
+        .pattern-dot {
+            width: 24px;
+            height: 24px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            margin: 0 auto;
+            position: relative;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .pattern-dot.active {
+            background: #00cccc;
+            transform: scale(1.3);
+        }
+
+        .pattern-dot.connected::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 28px;
+            height: 2px;
+            background: #00cccc;
+            transform: translate(-50%, -50%) rotate(45deg);
+            z-index: -1;
+        }
+
+        .pattern-hint {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+            margin: 15px 0;
+        }
+
+        .pattern-preview {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+        }
+
+        .pattern-length {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        .shake {
+            animation: shake 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="security-container">
+        <div class="security-title">Безопасность</div>
+        
+        <div class="password-type-selector">
+            <div class="type-btn active" data-type="pin">Цифровой пароль</div>
+            <div class="type-btn" data-type="pattern">Графический пароль</div>
+        </div>
+        
+        <div class="password-section" id="pin-section">
+            <input type="password" class="password-input" id="password-input" 
+                   placeholder="Введите новый пароль" maxlength="4">
+            <input type="password" class="password-input" id="confirm-password" 
+                   placeholder="Подтвердите пароль" maxlength="4">
+            <button class="password-btn" id="set-password-btn">Установить пароль</button>
+            <div id="status-message" class="status-message"></div>
+        </div>
+        
+        <div class="password-section" id="pattern-section" style="display: none;">
+            <div class="pattern-setup-container">
+                <div class="pattern-hint">Нарисуйте графический пароль</div>
+                <div class="pattern-grid" id="pattern-grid-setup">
+                    <div class="pattern-dot" data-dot="0"></div>
+                    <div class="pattern-dot" data-dot="1"></div>
+                    <div class="pattern-dot" data-dot="2"></div>
+                    <div class="pattern-dot" data-dot="3"></div>
+                    <div class="pattern-dot" data-dot="4"></div>
+                    <div class="pattern-dot" data-dot="5"></div>
+                    <div class="pattern-dot" data-dot="6"></div>
+                    <div class="pattern-dot" data-dot="7"></div>
+                    <div class="pattern-dot" data-dot="8"></div>
+                </div>
+                <div class="pattern-preview">
+                    <div class="pattern-hint">Длина паттерна: <span id="pattern-length">0</span> точек</div>
+                    <div class="pattern-length">Минимум 4 точки</div>
+                </div>
+                <button class="password-btn" id="set-pattern-btn" disabled>Установить графический пароль</button>
+            </div>
+        </div>
+        
+        <div class="password-section" id="remove-password-section" style="display: none;">
+            <div id="remove-hint"></div>
+            <div id="remove-password-container"></div>
+            <button class="password-btn" id="remove-password-btn">Удалить пароль</button>
+        </div>
+        
+        <div class="password-info">
+            Для безопасности используйте разные пароли
+        </div>
+    </div>
+
+    <script>
+        class SecurityApp {
+            constructor() {
+                this.dbName = 'SecurityDB';
+                this.storeName = 'passwords';
+                this.currentPasswordType = 'pin';
+                this.currentPattern = [];
+                this.init();
+            }
+            
+            async init() {
+                await this.initDB();
+                this.setupEventListeners();
+                this.checkExistingPassword();
+                this.setupPatternLock();
+            }
+            
+            async initDB() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(this.dbName, 1);
+                    
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve(request.result);
+                    
+                    request.onupgradeneeded = (event) => {
+                        const db = event.target.result;
+                        if (!db.objectStoreNames.contains(this.storeName)) {
+                            db.createObjectStore(this.storeName);
+                        }
+                    };
+                });
+            }
+            
+            async getDB() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(this.dbName, 1);
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve(request.result);
+                });
+            }
+            
+            async setPassword(passwordData) {
+                const db = await this.getDB();
+                return new Promise((resolve, reject) => {
+                    const transaction = db.transaction([this.storeName], 'readwrite');
+                    const store = transaction.objectStore(this.storeName);
+                    const request = store.put(passwordData, 'lockPassword');
+                    
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve();
+                });
+            }
+            
+            async getPassword() {
+                const db = await this.getDB();
+                return new Promise((resolve, reject) => {
+                    const transaction = db.transaction([this.storeName], 'readonly');
+                    const store = transaction.objectStore(this.storeName);
+                    const request = store.get('lockPassword');
+                    
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve(request.result);
+                });
+            }
+            
+            async removePassword() {
+                const db = await this.getDB();
+                return new Promise((resolve, reject) => {
+                    const transaction = db.transaction([this.storeName], 'readwrite');
+                    const store = transaction.objectStore(this.storeName);
+                    const request = store.delete('lockPassword');
+                    
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve();
+                });
+            }
+            
+            async hashPassword(password) {
+                const encoder = new TextEncoder();
+                const data = encoder.encode(password);
+                const hash = await crypto.subtle.digest('SHA-256', data);
+                return Array.from(new Uint8Array(hash))
+                    .map(b => b.toString(16).padStart(2, '0'))
+                    .join('');
+            }
+            
+            setupEventListeners() {
+                document.querySelectorAll('.type-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        this.switchPasswordType(e.target.dataset.type);
+                    });
+                });
+                
+                const passwordInput = document.getElementById('password-input');
+                const confirmInput = document.getElementById('confirm-password');
+                const setBtn = document.getElementById('set-password-btn');
+                
+                [passwordInput, confirmInput].forEach(input => {
+                    input.addEventListener('input', (e) => {
+                        e.target.value = e.target.value.replace(/\D/g, '');
+                    });
+                });
+                
+                setBtn.addEventListener('click', () => this.setNewPassword());
+                
+                const setPatternBtn = document.getElementById('set-pattern-btn');
+                setPatternBtn.addEventListener('click', () => this.setNewPattern());
+                
+                const removeBtn = document.getElementById('remove-password-btn');
+                removeBtn.addEventListener('click', () => this.removeCurrentPassword());
+            }
+            
+            switchPasswordType(type) {
+                this.currentPasswordType = type;
+                
+                document.querySelectorAll('.type-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.type === type);
+                });
+                
+                document.getElementById('pin-section').style.display = 
+                    type === 'pin' ? 'block' : 'none';
+                document.getElementById('pattern-section').style.display = 
+                    type === 'pattern' ? 'block' : 'none';
+                
+                this.resetForm();
+            }
+            
+            setupPatternLock() {
+                const grid = document.getElementById('pattern-grid-setup');
+                const dots = grid.querySelectorAll('.pattern-dot');
+                let isDrawing = false;
+                
+                const startDrawing = (dot) => {
+                    isDrawing = true;
+                    this.currentPattern = [parseInt(dot.dataset.dot)];
+                    dot.classList.add('active');
+                    this.updatePatternPreview();
+                };
+                
+                const addToPattern = (dot) => {
+                    if (!isDrawing) return;
+                    
+                    const dotIndex = parseInt(dot.dataset.dot);
+                    if (!this.currentPattern.includes(dotIndex)) {
+                        this.currentPattern.push(dotIndex);
+                        dot.classList.add('active');
+                        this.updatePatternPreview();
+                    }
+                };
+                
+                const endDrawing = () => {
+                    if (!isDrawing) return;
+                    isDrawing = false;
+                    this.updatePatternPreview();
+                };
+                
+                dots.forEach(dot => {
+                    dot.addEventListener('mousedown', () => startDrawing(dot));
+                    dot.addEventListener('mouseenter', () => addToPattern(dot));
+                });
+                
+                grid.addEventListener('mouseup', endDrawing);
+                grid.addEventListener('mouseleave', endDrawing);
+                
+                dots.forEach(dot => {
+                    dot.addEventListener('touchstart', (e) => {
+                        e.preventDefault();
+                        startDrawing(dot);
+                    });
+                    
+                    dot.addEventListener('touchmove', (e) => {
+                        e.preventDefault();
+                        const touch = e.touches[0];
+                        const element = document.elementFromPoint(touch.clientX, touch.clientY);
+                        if (element && element.classList.contains('pattern-dot')) {
+                            addToPattern(element);
+                        }
+                    });
+                });
+                
+                grid.addEventListener('touchend', endDrawing);
+            }
+            
+            updatePatternPreview() {
+                const lengthElement = document.getElementById('pattern-length');
+                const setPatternBtn = document.getElementById('set-pattern-btn');
+                
+                lengthElement.textContent = this.currentPattern.length;
+                setPatternBtn.disabled = this.currentPattern.length < 4;
+            }
+            
+            resetForm() {
+                document.getElementById('password-input').value = '';
+                document.getElementById('confirm-password').value = '';
+                
+                this.currentPattern = [];
+                document.querySelectorAll('.pattern-dot').forEach(dot => {
+                    dot.classList.remove('active');
+                });
+                this.updatePatternPreview();
+                
+                this.showStatus('', '');
+            }
+            
+            async setNewPassword() {
+                const password = document.getElementById('password-input').value;
+                const confirm = document.getElementById('confirm-password').value;
+                
+                if (password.length !== 4) {
+                    this.showStatus('Пароль должен содержать 4 цифры', 'error');
+                    return;
+                }
+                
+                if (password !== confirm) {
+                    this.showStatus('Пароли не совпадают', 'error');
+                    return;
+                }
+                
+                try {
+                    const passwordHash = await this.hashPassword(password);
+                    const passwordData = {
+                        type: 'pin',
+                        hash: passwordHash
+                    };
+                    
+                    await this.setPassword(passwordData);
+                    this.showStatus('Цифровой пароль успешно установлен!', 'success');
+                    this.resetForm();
+                    this.checkExistingPassword();
+                    
+                    window.parent.postMessage({
+                        type: 'password-changed',
+                        hasPassword: true
+                    }, '*');
+                    
+                } catch (error) {
+                    this.showStatus('Ошибка сохранения пароля', 'error');
+                }
+            }
+            
+            async setNewPattern() {
+                if (this.currentPattern.length < 4) {
+                    this.showStatus('Паттерн должен содержать минимум 4 точки', 'error');
+                    return;
+                }
+                
+                try {
+                    const patternString = this.currentPattern.join('');
+                    const patternHash = await this.hashPassword(patternString);
+                    const passwordData = {
+                        type: 'pattern',
+                        hash: patternHash
+                    };
+                    
+                    await this.setPassword(passwordData);
+                    this.showStatus('Графический пароль успешно установлен!', 'success');
+                    this.resetForm();
+                    this.checkExistingPassword();
+                    
+                    window.parent.postMessage({
+                        type: 'password-changed',
+                        hasPassword: true
+                    }, '*');
+                    
+                } catch (error) {
+                    this.showStatus('Ошибка сохранения пароля', 'error');
+                }
+            }
+            
+            async removeCurrentPassword() {
+                const existingPassword = await this.getPassword();
+                
+                if (existingPassword.type === 'pin') {
+                    const currentInput = document.getElementById('current-password-input');
+                    const enteredPassword = currentInput.value;
+                    
+                    if (enteredPassword.length !== 4) {
+                        this.showStatus('Введите текущий пароль', 'error');
+                        return;
+                    }
+                    
+                    const enteredHash = await this.hashPassword(enteredPassword);
+                    if (enteredHash !== existingPassword.hash) {
+                        this.showStatus('Неверный пароль', 'error');
+                        return;
+                    }
+                }
+                
+                try {
+                    await this.removePassword();
+                    this.showStatus('Пароль удален', 'success');
+                    this.checkExistingPassword();
+                    
+                    window.parent.postMessage({
+                        type: 'password-changed',
+                        hasPassword: false
+                    }, '*');
+                    
+                } catch (error) {
+                    this.showStatus('Ошибка удаления пароля', 'error');
+                }
+            }
+            
+            async checkExistingPassword() {
+                const passwordData = await this.getPassword();
+                const removeSection = document.getElementById('remove-password-section');
+                const removeHint = document.getElementById('remove-hint');
+                const removeContainer = document.getElementById('remove-password-container');
+                
+                if (passwordData) {
+                    removeSection.style.display = 'block';
+                    
+                    if (passwordData.type === 'pin') {
+                        removeHint.textContent = 'Для удаления пароля введите текущий пароль:';
+                        removeContainer.innerHTML = `
+                            <input type="password" class="password-input" id="current-password-input" 
+                                   placeholder="Введите текущий пароль" maxlength="4">
+                        `;
+                        
+                        const currentInput = document.getElementById('current-password-input');
+                        currentInput.addEventListener('input', (e) => {
+                            e.target.value = e.target.value.replace(/\D/g, '');
+                        });
+                    } else {
+                        removeHint.textContent = 'Текущий пароль: Графический';
+                        removeContainer.innerHTML = `
+                            <div style="text-align: center; color: rgba(255,255,255,0.7); padding: 10px;">
+                                Нажмите кнопку ниже для удаления графического пароля
+                            </div>
+                        `;
+                    }
+                } else {
+                    removeSection.style.display = 'none';
+                }
+            }
+            
+            showStatus(message, type) {
+                const status = document.getElementById('status-message');
+                status.textContent = message;
+                status.className = `status-message ${type ? 'status-' + type : ''}`;
+                
+                if (message) {
+                    setTimeout(() => {
+                        status.textContent = '';
+                        status.className = 'status-message';
+                    }, 3000);
+                }
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            new SecurityApp();
+        });
+    </script>
+</body>
+</html> 

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Простой браузер</title>
+<style>
+    #search-container {
+        display: flex;
+        align-items: center;
+        width: 340px;
+    }
+    #url-input {
+        height: 40px;
+        width: 300px;
+        box-sizing: border-box;
+    }
+    #protocol-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        margin-left: 5px;
+    }
+    #protocol-icon svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+    }
+    #browser-frame {
+        width: 340px;
+        height: 600px;
+        margin-top: 10px;
+        border: 1px solid #ccc;
+    }
+
+    /* спиннер */
+    .spinner {
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+</head>
+<body>
+
+<div id="search-container">
+    <input type="search" id="url-input" value="https://">
+    <span id="protocol-icon"></span>
+</div>
+
+<iframe id="browser-frame" src=""></iframe>
+
+<script>
+const urlInput = document.getElementById('url-input');
+const browserFrame = document.getElementById('browser-frame');
+const protocolIcon = document.getElementById('protocol-icon');
+
+// зелёный замок
+const lockIcon = `<svg viewBox="0 0 24 24" fill="green">
+<path d="M13 14C13 13.4477 12.5523 13 12 13C11.4477 13 11 13.4477 11 14V16C11 16.5523 11.4477 17 12 17C12.5523 17 13 16.5523 13 16V14Z"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M7 8.12C5.32 8.53 4 9.96 4 11.77V17.31C4 19.97 6.32 22 9 22H15C17.68 22 20 19.97 20 17.31V11.77C20 9.96 18.68 8.53 17 8.12V7C17 4.24 14.76 2 12 2C9.24 2 7 4.24 7 7V8.12ZM15 7V8H9V7C9 6.65 9.06 6.31 9.17 6C9.58 4.83 10.69 4 12 4C13.31 4 14.42 4.83 14.83 6C14.94 6.31 15 6.65 15 7ZM6 11.77C6 10.87 6.82 10 8 10H16C17.18 10 18 10.87 18 11.77V17.31C18 18.72 16.73 20 15 20H9C7.27 20 6 18.72 6 17.31V11.77Z"/>
+</svg>`;
+
+// красный треугольник с белым !
+const alertIcon = `<svg viewBox="0 0 24 24">
+<path d="M2.2 18.47L10.16 4C10.9 2.66 13.1 2.66 13.84 4L21.8 18.47C22.44 19.64 21.46 21 19.96 21H4.04C2.54 21 1.56 19.64 2.2 18.47Z" fill="red"/>
+<text x="12" y="17" font-size="12" text-anchor="middle" fill="white" font-weight="bold">!</text>
+</svg>`;
+
+// жёлтое кольцо с красным '-'
+const errorIcon = `<svg viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="11" stroke="yellow" stroke-width="2" fill="none"/>
+<path d="M6 12H18" stroke="red" stroke-width="2" stroke-linecap="round"/>
+</svg>`;
+
+// спиннер
+const spinner = `<svg class="spinner" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="10" stroke="blue" stroke-width="2" fill="none" stroke-dasharray="30 60" stroke-linecap="round"/>
+</svg>`;
+
+urlInput.addEventListener('keydown', async function(event) {
+    if (event.key === 'Enter') {
+        let url = this.value.trim();
+        if (url === '' || url === 'https://') return;
+
+        // Добавляем протокол, если его нет
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            url = 'https://' + url;
+        }
+
+        protocolIcon.innerHTML = spinner;
+        browserFrame.src = url;
+
+        let isError = false;
+
+        try {
+            // Проверяем статус ответа сервера
+            const response = await fetch(url, { method: 'HEAD', mode: 'no-cors' });
+            // Если fetch не возвращает ok (например, 404, 500), но это не всегда надёжно с no-cors
+        } catch (error) {
+            isError = true; // Сетевые ошибки (например, net::ERR_NAME_NOT_RESOLVED)
+        }
+
+        browserFrame.onerror = () => {
+            protocolIcon.innerHTML = errorIcon;
+        };
+
+        browserFrame.onload = () => {
+            try {
+                const iframeDoc = browserFrame.contentDocument || browserFrame.contentWindow.document;
+                const textContent = iframeDoc.body.textContent.toLowerCase();
+
+                // Улучшенная проверка текста на ошибки
+                if (textContent.includes('не удалось открыть веб-страницу') ||
+                    textContent.includes('не удается открыть страницу') || // Альтернативные формулировки
+                    textContent.includes('net::') && !textContent.includes('script') && !textContent.includes('code')) { // Исключаем ложные срабатывания (например, код)
+                    protocolIcon.innerHTML = errorIcon;
+                } else if (!isError) {
+                    // Устанавливаем значок на основе протокола, если нет ошибок
+                    if (url.startsWith('https://')) {
+                        protocolIcon.innerHTML = lockIcon;
+                    } else if (url.startsWith('http://')) {
+                        protocolIcon.innerHTML = alertIcon;
+                    } else {
+                        protocolIcon.innerHTML = '';
+                    }
+                } else {
+                    protocolIcon.innerHTML = errorIcon;
+                }
+            } catch (e) {
+                // Ошибка доступа к содержимому iframe (например, из-за CORS)
+                if (!isError) {
+                    if (url.startsWith('https://')) {
+                        protocolIcon.innerHTML = lockIcon;
+                    } else if (url.startsWith('http://')) {
+                        protocolIcon.innerHTML = alertIcon;
+                    } else {
+                        protocolIcon.innerHTML = '';
+                    }
+                } else {
+                    protocolIcon.innerHTML = errorIcon;
+                }
+            }
+        };
+    }
+});
+</script>
+
+</body>
+</html>

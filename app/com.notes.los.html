@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Заметки - лостбокс ос</title>
+<style>
+body {
+    font-family: sans-serif;
+    background: #fff;
+    color: #111;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+}
+
+#notes-container {
+    padding: 20px;
+}
+
+.note {
+    background: #eee;
+    margin: 10px 0;
+    padding: 10px 15px;
+    border-radius: 8px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.note:hover {
+    background: #ddd;
+}
+
+.note-content {
+    max-height: 1.2em; /* показываем только первую строку */
+    overflow: hidden;
+    transition: max-height 0.3s;
+}
+
+.note.expanded .note-content {
+    max-height: 150px; /* развернули */
+    overflow-y: auto;  /* скроллинг для длинных заметок */
+}
+
+.note .delete, .note .copy {
+    position: absolute;
+    top: 10px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.note .delete {
+    right: 10px;
+    color: #f55;
+}
+
+.note .copy {
+    right: 40px;
+    color: #0af;
+}
+
+.add-btn {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    background: #0af;
+    color: #fff;
+    font-size: 30px;
+    width: 50px;
+    height: 50px;
+    text-align: center;
+    line-height: 50px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.add-btn:hover {
+    transform: scale(1.2);
+}
+
+/* модалка */
+#note-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    width: 90%;
+    max-width: 400px;
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-sizing: border-box;
+    color: #111;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+    transition: transform 0.3s ease;
+    z-index: 1000;
+}
+
+#note-modal.active {
+    transform: translate(-50%, -50%) scale(1);
+}
+
+#note-modal textarea {
+    width: 100%;
+    height: 150px;  /* увеличенное поле ввода */
+    background: #f5f5f5;
+    color: #111;
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    resize: vertical;
+    overflow-y: auto;
+}
+
+.modal-buttons {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+}
+
+.modal-buttons button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.2s;
+}
+
+.save-btn {
+    background: #0a0;
+    color: #fff;
+}
+
+.save-btn:hover {
+    background: #0f0;
+}
+
+.cancel-btn {
+    background: #a00;
+    color: #fff;
+}
+
+.cancel-btn:hover {
+    background: #f55;
+}
+
+/* предупреждение удаления и копирования */
+.modal-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    width: 90%;
+    max-width: 300px;
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    color: #111;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+    transition: transform 0.3s;
+    z-index: 1001;
+}
+
+.modal-popup.active {
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.modal-popup button {
+    margin: 10px;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.modal-popup .yes {
+    background: #0a0;
+    color: #fff;
+}
+
+.modal-popup .no {
+    background: #a00;
+    color: #fff;
+}
+</style>
+</head>
+<body>
+
+<div id="notes-container"></div>
+
+<div class="add-btn" id="add-btn">+</div>
+
+<!-- модалка для ввода заметки -->
+<div id="note-modal">
+    <textarea id="note-text" placeholder="Новая заметка..."></textarea>
+    <div class="modal-buttons">
+        <button class="save-btn" id="save-note">Сохранить</button>
+        <button class="cancel-btn" id="cancel-note">Отмена</button>
+    </div>
+</div>
+
+<!-- подтверждение удаления -->
+<div id="delete-confirm" class="modal-popup">
+    <div>Вы точно хотите удалить заметку?</div>
+    <button class="yes" id="confirm-yes">Да</button>
+    <button class="no" id="confirm-no">Нет</button>
+</div>
+
+<!-- подтверждение копирования -->
+<div id="copy-confirm" class="modal-popup">
+    <div>Заметка скопирована!</div>
+    <button class="no" id="copy-ok">ОК</button>
+</div>
+
+<script>
+let db;
+let notes = [];
+let deleteIndex = null;
+
+// открываем IndexedDB
+const request = indexedDB.open("notes.user.storage", 1);
+request.onupgradeneeded = (e) => {
+    db = e.target.result;
+    if(!db.objectStoreNames.contains('notes')) {
+        db.createObjectStore('notes', { keyPath: 'id', autoIncrement: true });
+    }
+};
+request.onsuccess = (e) => {
+    db = e.target.result;
+    loadNotes();
+};
+request.onerror = (e) => console.error('db error', e);
+
+// загрузка заметок из базы
+function loadNotes() {
+    const transaction = db.transaction(['notes'], 'readonly');
+    const store = transaction.objectStore('notes');
+    const getAll = store.getAll();
+    getAll.onsuccess = () => {
+        notes = getAll.result.map(n => n.text);
+        renderNotes();
+    };
+}
+
+// сохранение заметки в IndexedDB
+function saveNoteToDB(text) {
+    const transaction = db.transaction(['notes'], 'readwrite');
+    const store = transaction.objectStore('notes');
+    store.add({ text });
+}
+
+// удаление заметки из IndexedDB
+function deleteNoteFromDB(index) {
+    const transaction = db.transaction(['notes'], 'readwrite');
+    const store = transaction.objectStore('notes');
+    const getAll = store.getAll();
+    getAll.onsuccess = () => {
+        const note = getAll.result[index];
+        if(note) store.delete(note.id);
+    };
+}
+
+// рендер заметок
+const notesContainer = document.getElementById('notes-container');
+function renderNotes() {
+    notesContainer.innerHTML = '';
+    notes.forEach((n, i) => {
+        const noteEl = document.createElement('div');
+        noteEl.className = 'note';
+        noteEl.innerHTML = `<div class="note-content">${n}</div>
+                            <div class="copy">💾</div>
+                            <div class="delete">×</div>`;
+
+        const content = noteEl.querySelector('.note-content');
+        const copyBtn = noteEl.querySelector('.copy');
+        const delBtn = noteEl.querySelector('.delete');
+
+        content.addEventListener('click', () => {
+            noteEl.classList.toggle('expanded');
+        });
+
+        delBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteIndex = i;
+            deleteConfirm.classList.add('active');
+        });
+
+        copyBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            navigator.clipboard.writeText(n).then(() => {
+                copyConfirm.classList.add('active');
+            });
+        });
+
+        notesContainer.appendChild(noteEl);
+    });
+}
+
+// кнопки и модалки
+const addBtn = document.getElementById('add-btn');
+const noteModal = document.getElementById('note-modal');
+const noteText = document.getElementById('note-text');
+const saveBtn = document.getElementById('save-note');
+const cancelBtn = document.getElementById('cancel-note');
+
+const deleteConfirm = document.getElementById('delete-confirm');
+const confirmYes = document.getElementById('confirm-yes');
+const confirmNo = document.getElementById('confirm-no');
+
+const copyConfirm = document.getElementById('copy-confirm');
+const copyOk = document.getElementById('copy-ok');
+
+addBtn.addEventListener('click', () => {
+    noteText.value = '';
+    noteModal.classList.add('active');
+});
+
+cancelBtn.addEventListener('click', () => {
+    noteModal.classList.remove('active');
+});
+
+saveBtn.addEventListener('click', () => {
+    const text = noteText.value.trim();
+    if(text) {
+        notes.push(text);
+        saveNoteToDB(text);
+        renderNotes();
+    }
+    noteModal.classList.remove('active');
+});
+
+// удаление заметки
+confirmYes.addEventListener('click', () => {
+    if(deleteIndex !== null) {
+        deleteNoteFromDB(deleteIndex);
+        notes.splice(deleteIndex, 1);
+        renderNotes();
+        deleteIndex = null;
+        deleteConfirm.classList.remove('active');
+    }
+});
+confirmNo.addEventListener('click', () => {
+    deleteIndex = null;
+    deleteConfirm.classList.remove('active');
+});
+
+// копирование заметки
+copyOk.addEventListener('click', () => {
+    copyConfirm.classList.remove('active');
+});
+</script>
+
+</body>
+</html>

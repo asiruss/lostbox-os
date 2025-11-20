@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Itserch поисковик</title>
+    <style>
+        body {
+            height: 100vh;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            font-family: Arial, sans-serif;
+            background-color: #ffffff;
+        }
+        @keyframes smooth-spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+
+        #search-title span {
+          animation: smooth-spin 3s linear infinite;
+          display: inline-block;
+        } 
+        
+        #search-title {
+            color: #0000cc;
+            font-size: 25px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        #input-search {
+            width: 300px;
+            max-width: 90%;
+            padding: 5px;
+            border: 2px solid #000000;
+            font-size: 16px;
+        }
+
+        .button-container {
+            display: flex;
+            gap: 10px;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .search-button {
+            padding: 5px 10px;
+            border: 1px solid #000000;
+            cursor: pointer;
+            background-color: #cccccc;
+            color: #000000;
+            font-size: 14px;
+            width: 250px; 
+            max-width: 90%;
+        }
+
+        .search-button:hover {
+            background-color: #b0b0b0;
+        }
+        
+        .search-button:active {
+            background-color: #66cc66;
+        }
+
+        .search-source-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .source-btn {
+            padding: 3px 8px;
+            border: 1px solid #000000;
+            background-color: #f0f0f0;
+            cursor: pointer;
+            font-size: 12px;
+            border-radius: 3px;
+        }
+
+        .source-btn.active {
+            background-color: #66cc66;
+            font-weight: bold;
+        }
+
+        #results-container {
+            width: 600px;
+            max-width: 90%;
+            padding: 0;
+            text-align: left;
+            opacity: 0;
+            height: 0;
+            overflow: auto;
+        }
+        
+        #results-container.visible {
+            opacity: 1;
+            height: auto;
+            padding-top: 20px;
+        }
+
+        .result-title {
+            color: #0000cc;
+            font-size: 16px;
+            text-decoration: underline;
+            cursor: pointer;
+            margin: 5px 0 0 0;
+            display: block;
+        }
+        
+        .result-description {
+            color: #000000;
+            font-size: 12px;
+            margin-top: 3px;
+        }
+        
+        .error-message {
+            margin-bottom: 10px;
+        }
+
+        .search-mode-active #search-title {
+            margin-top: 20px;
+            font-size: 24px;
+            align-self: flex-start;
+            width: 100%;
+            text-align: left;
+        }
+
+        .search-mode-active #input-search {
+            width: 100%;
+        }
+
+        .search-mode-active #center-container {
+            align-self: flex-start;
+            width: 90%;
+            max-width: 600px;
+            margin-top: 0;
+            padding-top: 20px;
+        }
+
+        .search-mode-active .search-source-selector {
+            align-self: flex-start;
+        }
+
+        .search-mode-active #results-container {
+             width: 100%;
+        }
+        
+        .search-mode-active body {
+            justify-content: flex-start;
+        }
+
+        .loading {
+            color: #666;
+            font-style: italic;
+            font-size: 12px;
+        }
+
+        .error {
+            color: red;
+            font-size: 12px;
+        }
+
+        .result-url {
+            color: #006621;
+            font-size: 12px;
+            margin: 3px 0;
+        }
+        
+        h6 {
+            margin-top: 0px;
+            margin-bottom: 10px;
+        }
+
+        .source-badge {
+            background: #e0e0e0;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 10px;
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="center-container" style="display: flex; flex-direction: column; align-items: center;">
+        <center><h1 id="search-title">Itserch поисковик 
+        <span>🌐</span></h1></center>
+        <center><h6 style="opacity: 0.5;">Выберите базу для поиска</h6></center>
+        
+        <div class="search-source-selector">
+            <button class="source-btn active" data-source="wikipedia">Википедия</button>
+            <button class="source-btn" data-source="duckduckgo">DuckDuckGo</button>
+        </div>
+        
+        <input type="search" id="input-search" placeholder="Ищи чисто">
+        <div class="button-container">
+            <button id="button-search" class="search-button">НАЙТИ</button>
+        </div>
+    </div>
+    
+    <div id="results-container"></div>
+
+    <script>
+        const body = document.body;
+        const inputSearch = document.getElementById('input-search');
+        const buttonSearch = document.getElementById('button-search');
+        const resultsContainer = document.getElementById('results-container');
+        const sourceButtons = document.querySelectorAll('.source-btn');
+        
+        let currentSource = 'wikipedia'; // 🔥 ВИКИПЕДИЯ ПО УМОЛЧАНИЮ
+
+        // Переключение источника поиска
+        sourceButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                sourceButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentSource = btn.dataset.source;
+            });
+        });
+
+        // 🔥 Функция для поиска через Wikipedia API
+        async function searchWikipedia(query) {
+            try {
+                // REST API для получения краткого описания
+                const response = await fetch(
+                    `https://ru.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`
+                );
+                
+                if (!response.ok) {
+                    // Если страница не найдена, пробуем поиск
+                    return await searchWikipediaFallback(query);
+                }
+                
+                const data = await response.json();
+                return { type: 'summary', data };
+            } catch (error) {
+                console.error('Ошибка поиска в Википедии:', error);
+                throw error;
+            }
+        }
+
+        // 🔥 Фолбэк поиск по заголовкам Wikipedia
+        async function searchWikipediaFallback(query) {
+            try {
+                const response = await fetch(
+                    `https://ru.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*&srlimit=5`
+                );
+                
+                const data = await response.json();
+                return { type: 'search', data: data.query.search };
+            } catch (error) {
+                throw error;
+            }
+        }
+
+        // 🔥 Функция для поиска через DuckDuckGo API
+        async function searchDuckDuckGo(query) {
+            try {
+                const response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`);
+                
+                if (!response.ok) {
+                    throw new Error('Ошибка сети');
+                }
+                
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Ошибка поиска в DuckDuckGo:', error);
+                throw error;
+            }
+        }
+
+        // 🔥 ОБНОВЛЕННАЯ Функция для отображения результатов Wikipedia
+        function displayWikipediaResults(result, query) {
+            let htmlOutput = `<p style="font-size: 12px; color: #555; margin-top: 0; margin-bottom: 10px;">
+                Результат по запросу: <b>${query}</b> 
+                <span class="source-badge">Википедия</span>
+            </p>`;
+            htmlOutput += `<hr style="border: 0; border-top: 1px solid #dadce0; margin-bottom: 10px;">`;
+
+            if (result.type === 'summary') {
+                const data = result.data;
+                htmlOutput += `
+                    <div>
+                        <a href="${data.content_urls.desktop.page}" target="_blank" class="result-title">${data.title}</a>
+                        <div class="result-url">${data.content_urls.desktop.page}</div>
+                        <p class="result-description">${data.extract}</p>
+                    </div>
+                `;
+            } else if (result.type === 'search') {
+                const results = result.data;
+                if (results.length === 0) {
+                    htmlOutput += `<p class="result-description">По запросу <b>${query}</b> в Википедии ничего не найдено.</p>`;
+                } else {
+                    results.forEach(item => {
+                        htmlOutput += `
+                            <div>
+                                <a href="https://ru.wikipedia.org/wiki/${encodeURIComponent(item.title)}" target="_blank" class="result-title">${item.title}</a>
+                                <div class="result-url">https://ru.wikipedia.org/wiki/${encodeURIComponent(item.title)}</div>
+                                <p class="result-description">${item.snippet.replace(/<[^>]*>/g, '')}...</p>
+                            </div>
+                            <hr style="border: 0; border-top: 1px solid #dadce0; margin: 10px 0;">
+                        `;
+                    });
+                }
+            }
+
+            resultsContainer.innerHTML = htmlOutput;
+        }
+
+        // 🔥 ОБНОВЛЕННАЯ Функция для отображения результатов DuckDuckGo
+        function displayDuckDuckGoResults(data, query) {
+            let htmlOutput = `<p style="font-size: 12px; color: #555; margin-top: 0; margin-bottom: 10px;">
+                Результат по запросу: <b>${query}</b> 
+                <span class="source-badge">DuckDuckGo</span>
+            </p>`;
+            htmlOutput += `<hr style="border: 0; border-top: 1px solid #dadce0; margin-bottom: 10px;">`;
+
+            if (!data || (data.Results.length === 0 && !data.RelatedTopics && !data.Abstract)) {
+                htmlOutput += `<p class="result-description">По запросу <b>${query}</b> ничего не найдено.</p>`;
+                resultsContainer.innerHTML = htmlOutput;
+                return;
+            }
+
+            // Абстракт (если есть)
+            if (data.Abstract) {
+                htmlOutput += `
+                    <div>
+                        <a href="${data.AbstractURL}" target="_blank" class="result-title">${data.Heading || data.AbstractText}</a>
+                        <div class="result-url">${data.AbstractURL}</div>
+                        <p class="result-description">${data.AbstractText}</p>
+                    </div>
+                    <hr style="border: 0; border-top: 1px solid #dadce0; margin: 10px 0;">
+                `;
+            }
+
+            // Связанные темы
+            if (data.RelatedTopics && data.RelatedTopics.length > 0) {
+                data.RelatedTopics.forEach(topic => {
+                    if (topic.FirstURL && topic.Text) {
+                        htmlOutput += `
+                            <div>
+                                <a href="${topic.FirstURL}" target="_blank" class="result-title">${topic.Text}</a>
+                                <div class="result-url">${topic.FirstURL}</div>
+                            </div>
+                            <hr style="border: 0; border-top: 1px solid #dadce0; margin: 10px 0;">
+                        `;
+                    }
+                });
+            }
+
+            // Результаты
+            if (data.Results && data.Results.length > 0) {
+                data.Results.forEach(result => {
+                    htmlOutput += `
+                        <div>
+                            <a href="${result.FirstURL}" target="_blank" class="result-title">${result.Text}</a>
+                            <div class="result-url">${result.FirstURL}</div>
+                        </div>
+                        <hr style="border: 0; border-top: 1px solid #dadce0; margin: 10px 0;">
+                    `;
+                });
+            }
+
+            // Если ничего не найдено
+            if (!data.Abstract && (!data.RelatedTopics || data.RelatedTopics.length === 0) && (!data.Results || data.Results.length === 0)) {
+                htmlOutput += `<p class="result-description">По вашему запросу ничего не найдено. Попробуйте изменить запрос.</p>`;
+            }
+
+            resultsContainer.innerHTML = htmlOutput;
+        }
+
+        // 🔥 ОБНОВЛЕННАЯ Функция выполнения поиска
+        async function performSearch() {
+            const query = inputSearch.value.trim();
+            
+            if (!query) {
+                resultsContainer.innerHTML = '<p class="error-message">Пожалуйста, введите запрос для поиска.</p>';
+                toggleSearchMode(true);
+                return;
+            }
+
+            // Показываем загрузку
+            toggleSearchMode(true);
+            resultsContainer.innerHTML = `<p class="loading">Идет поиск в ${currentSource === 'wikipedia' ? 'Википедии' : 'DuckDuckGo'}...</p>`;
+
+            try {
+                if (currentSource === 'wikipedia') {
+                    const wikiData = await searchWikipedia(query);
+                    displayWikipediaResults(wikiData, query);
+                } else {
+                    const ddgData = await searchDuckDuckGo(query);
+                    displayDuckDuckGoResults(ddgData, query);
+                }
+            } catch (error) {
+                resultsContainer.innerHTML = `<p class="error-message">Ошибка при выполнении поиска: ${error.message}</p>`;
+            }
+        }
+
+        function toggleSearchMode(isActive) {
+            if (isActive) {
+                body.classList.add('search-mode-active');
+                resultsContainer.classList.add('visible');
+            } else {
+                body.classList.remove('search-mode-active');
+                resultsContainer.classList.remove('visible');
+            }
+        }
+
+        // Обработчики событий
+        buttonSearch.addEventListener('click', performSearch);
+        
+        inputSearch.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+
+        // Сброс режима поиска, когда поле очищено
+        inputSearch.addEventListener('input', () => {
+            if (inputSearch.value.trim().length === 0) {
+                toggleSearchMode(false);
+                resultsContainer.innerHTML = '';
+            }
+        });
+
+        // Фокусировка на поле ввода при загрузке
+        inputSearch.focus();
+    </script>
+</body>
+</html>
